@@ -4,25 +4,86 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#0f172a">
-    <title>TexFlow - Gestão de Encomendas</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="TexFlow">
+    <meta name="description" content="TexFlow - Gestão e Acompanhamento de Encomendas Têxteis">
     
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2611/2611152.png">
+    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/2611/2611152.png">
+    
+    <title>TexFlow - Gestão de Encomendas</title>
+    <link rel="manifest" href="manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#151e2e',
+                            950: '#020617',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     
     <style>
-        body { margin: 0; padding: 0; height: 100dvh; width: 100vw; overflow: hidden; }
-        #root { height: 100%; width: 100%; }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            margin: 0;
+            padding: 0;
+            height: 100dvh;
+            width: 100vw;
+            overflow: hidden;
+            background-color: #f8fafc;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        html.dark body {
+            background-color: #020617;
+            color: #f1f5f9;
+        }
+        #root {
+            height: 100%;
+            width: 100%;
+        }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .overflow-y-auto { -webkit-overflow-scrolling: touch; }
+        .safe-top { padding-top: env(safe-area-inset-top); }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-    <div id="root"></div>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-300">
     
-    <script type="module" src="/src/main.tsx"></script>
+    <div id="root"></div>
+
+    <script type="module" src="/index.tsx"></script>
 
     <script>
-        // O teu script do Service Worker pode ficar aqui
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js').catch(err => console.log(err));
+                // Usamos ./sw.js para garantir que o caminho é relativo à pasta do projeto
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => {
+                        console.log('TexFlow Service Worker registrado.');
+                        reg.addEventListener('updatefound', () => {
+                            const newWorker = reg.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    if(confirm('Nova versão disponível! Recarregar?')) {
+                                        window.location.reload();
+                                    }
+                                }
+                            });
+                        });
+                    })
+                    .catch(err => console.log('Erro SW:', err));
             });
         }
     </script>
