@@ -6,10 +6,11 @@ import { parseExcelDate, formatDate } from '../utils/formatters';
 
 // --- PERSISTÊNCIA (IndexedDB) ---
 const DB_NAME = 'TexFlowData';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_HANDLES = 'handles';
 const STORE_ORDERS = 'orders';
 const STORE_HEADERS = 'headers';
+const STORE_STOP_REASONS = 'stop_reasons';
 
 const initDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
@@ -26,6 +27,9 @@ const initDB = (): Promise<IDBDatabase> => {
       if (!db.objectStoreNames.contains(STORE_HEADERS)) {
         db.createObjectStore(STORE_HEADERS);
       }
+      if (!db.objectStoreNames.contains(STORE_STOP_REASONS)) {
+        db.createObjectStore(STORE_STOP_REASONS);
+      }
     };
     
     request.onsuccess = (event: any) => resolve(event.target.result);
@@ -34,6 +38,26 @@ const initDB = (): Promise<IDBDatabase> => {
 };
 
 // --- DATA PERSISTENCE HELPERS ---
+
+export const saveStopReasonsToDB = async (hierarchy: any[]) => {
+    const db = await initDB();
+    return new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(STORE_STOP_REASONS, 'readwrite');
+        tx.objectStore(STORE_STOP_REASONS).put(hierarchy, 'main_hierarchy');
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+};
+
+export const loadStopReasonsFromDB = async (): Promise<any[] | null> => {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_STOP_REASONS, 'readonly');
+        const req = tx.objectStore(STORE_STOP_REASONS).get('main_hierarchy');
+        tx.oncomplete = () => resolve(req.result || null);
+        tx.onerror = () => resolve(null);
+    });
+};
 
 export const saveOrdersToDB = async (orders: Order[], headers: Record<string, string>) => {
     const db = await initDB();
@@ -202,12 +226,11 @@ export const getSectorState = (order: Order, sectorId: string): SectorState => {
   let qty = 0;
   switch (sectorId) {
     case 'tecelagem': qty = order.felpoCruQty; break;
-    case 'felpo_cru': qty = order.tinturariaQty; break;
-    case 'felpo_cru': qty = order.tinturariaQty; break;
-    case 'tinturaria': qty = order.confRoupoesQty + order.confFelposQty; break;
-    case 'confeccao': qty = order.embAcabQty; break;
-    case 'embalagem': qty = order.stockCxQty; break;
-    case 'expedicao': qty = order.qtyBilled; break;
+    case 'felpo_cru': qty = order.felpoCruQty; break;
+    case 'tinturaria': qty = order.tinturariaQty; break;
+    case 'confeccao': qty = order.confRoupoesQty + order.confFelposQty; break;
+    case 'embalagem': qty = order.embAcabQty; break;
+    case 'expedicao': qty = order.stockCxQty; break;
   }
 
   if (order.qtyRequested > 0 && qty >= order.qtyRequested) return SectorState.COMPLETED;
@@ -396,6 +419,19 @@ export const parseSQLiteFile = async (file: File): Promise<{ orders: Order[], he
             if (obj.sectorObservations) {
                 try { obj.sectorObservations = JSON.parse(obj.sectorObservations); } catch { obj.sectorObservations = {}; }
             }
+            if (obj.sectorPredictedDates) {
+                try { 
+                    const parsed = JSON.parse(obj.sectorPredictedDates);
+                    // Convert string dates back to Date objects
+                    Object.keys(parsed).forEach(k => {
+                        if (parsed[k]) parsed[k] = new Date(parsed[k]);
+                    });
+                    obj.sectorPredictedDates = parsed;
+                } catch { obj.sectorPredictedDates = {}; }
+            }
+            if (obj.sectorStopReasons) {
+                try { obj.sectorStopReasons = JSON.parse(obj.sectorStopReasons); } catch { obj.sectorStopReasons = {}; }
+            }
             if (!obj.priority) obj.priority = 0;
             // Garantir que isManual seja boolean
             obj.isManual = obj.isManual === 1 || obj.isManual === true || obj.isManual === '1';
@@ -430,7 +466,7 @@ export const exportOrdersToSQLite = async (orders: Order[], headers: Record<stri
       confRoupoesQty REAL, confFelposQty REAL, confDate INTEGER,
       embAcabQty REAL, armExpDate INTEGER, stockCxQty REAL,
       dataEnt INTEGER, qtyBilled REAL, qtyOpen REAL,
-      sectorObservations TEXT, priority INTEGER, isManual INTEGER
+      sectorObservations TEXT, sectorPredictedDates TEXT, priority INTEGER, isManual INTEGER, sectorStopReasons TEXT
     );
   `;
   db.run(schema);
@@ -439,7 +475,7 @@ export const exportOrdersToSQLite = async (orders: Order[], headers: Record<stri
   const stmt = db.prepare(`
     INSERT INTO orders VALUES (
       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     )
   `);
 
@@ -457,8 +493,10 @@ export const exportOrdersToSQLite = async (orders: Order[], headers: Record<stri
         o.embAcabQty, o.armExpDate ? o.armExpDate.getTime() : null,
         o.stockCxQty, o.dataEnt ? o.dataEnt.getTime() : null,
         o.qtyBilled, o.qtyOpen, JSON.stringify(o.sectorObservations || {}),
+        JSON.stringify(o.sectorPredictedDates || {}),
         o.priority || 0,
-        o.isManual ? 1 : 0
+        o.isManual ? 1 : 0,
+        JSON.stringify(o.sectorStopReasons || {})
       ]);
   });
   
@@ -512,6 +550,24 @@ export const exportOrdersToExcel = (orders: Order[], customFileName?: string) =>
             'Obs. Confecção': order.sectorObservations?.['confeccao'] || '',
             'Obs. Embalagem': order.sectorObservations?.['embalagem'] || '',
             'Obs. Expedição': order.sectorObservations?.['expedicao'] || '',
+        };
+
+        const predictedDateColumns: Record<string, string> = {
+            'Prev. Tecelagem': formatDate(order.sectorPredictedDates?.['tecelagem']),
+            'Prev. Felpo Cru': formatDate(order.sectorPredictedDates?.['felpo_cru']),
+            'Prev. Tinturaria': formatDate(order.sectorPredictedDates?.['tinturaria']),
+            'Prev. Confecção': formatDate(order.sectorPredictedDates?.['confeccao']),
+            'Prev. Embalagem': formatDate(order.sectorPredictedDates?.['embalagem']),
+            'Prev. Expedição': formatDate(order.sectorPredictedDates?.['expedicao']),
+        };
+
+        const stopReasonColumns: Record<string, string> = {
+            'Motivo Tecelagem': order.sectorStopReasons?.['tecelagem'] || '',
+            'Motivo Felpo Cru': order.sectorStopReasons?.['felpo_cru'] || '',
+            'Motivo Tinturaria': order.sectorStopReasons?.['tinturaria'] || '',
+            'Motivo Confecção': order.sectorStopReasons?.['confeccao'] || '',
+            'Motivo Embalagem': order.sectorStopReasons?.['embalagem'] || '',
+            'Motivo Expedição': order.sectorStopReasons?.['expedicao'] || '',
         };
 
         return {
@@ -570,7 +626,13 @@ export const exportOrdersToExcel = (orders: Order[], customFileName?: string) =>
             'Data Bordados': formatDate(order.dataBordados),
 
             // Observações
-            ...obsColumns
+            ...obsColumns,
+            
+            // Datas Previstas (Setor)
+            ...predictedDateColumns,
+
+            // Motivos de Paragem (Setor)
+            ...stopReasonColumns
         };
     });
 

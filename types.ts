@@ -78,8 +78,14 @@ export interface Order {
   // Manual Confection Flag
   isManual?: boolean;
 
+  // Stop Reasons per Sector
+  sectorStopReasons?: Record<string, string>;
+
   // Observations
   sectorObservations?: Record<string, string>;
+
+  // Sector Predicted Dates (New field)
+  sectorPredictedDates?: Record<string, Date | null>;
   
   // Raw data from excel for round-trip capability
   _raw?: Record<string, any>;

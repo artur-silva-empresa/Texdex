@@ -10,9 +10,13 @@ import {
   User as UserIcon, 
   Menu, 
   X,
-  LogOut
+  LogOut,
+  Layers,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { User } from '../types';
+import { SECTORS } from '../constants';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -26,6 +30,8 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, activeView, setActiveView, onImportClick, alertCount, user, onLogout }) => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(window.innerWidth > 1024);
+  const [isSectorsOpen, setIsSectorsOpen] = React.useState(false);
+  const [isConfigOpen, setIsConfigOpen] = React.useState(false);
 
   // Itens base disponíveis para todos
   const baseMenuItems = [
@@ -39,9 +45,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, setActiveView, on
     : baseMenuItems;
 
   // Apenas Admin (Plan) vê configurações
-  const secondaryItems = user?.role === 'admin' ? [
-    { id: 'config', label: 'Configurações', icon: Settings },
-  ] : [];
+  const hasConfigAccess = user?.role === 'admin';
+
+  const handleSectorClick = (sectorId: string) => {
+    setActiveView(`sector-${sectorId}`);
+  };
 
   return (
     <div className="flex h-screen h-[100dvh] bg-slate-50 dark:bg-slate-950 overflow-hidden flex-col md:flex-row w-full transition-colors duration-300">
@@ -58,7 +66,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, setActiveView, on
 
         <nav className="flex-1 mt-6 overflow-y-auto scrollbar-hide">
           <ul className="space-y-1 px-3">
-            {menuItems.concat(secondaryItems).map((item) => (
+            {menuItems.map((item) => (
               <li key={item.id}>
                 <button
                   onClick={() => setActiveView(item.id)}
@@ -73,6 +81,105 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, setActiveView, on
                 </button>
               </li>
             ))}
+
+            {/* Sectores Dropdown */}
+            <li>
+              <button
+                onClick={() => setIsSectorsOpen(!isSectorsOpen)}
+                className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors ${
+                  activeView.startsWith('sector-')
+                    ? 'text-white bg-slate-800' 
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Layers size={20} />
+                  {isSidebarOpen && <span className="font-medium whitespace-nowrap">Sectores</span>}
+                </div>
+                {isSidebarOpen && (
+                  isSectorsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />
+                )}
+              </button>
+
+              {/* Submenu Sectores */}
+              {isSectorsOpen && isSidebarOpen && (
+                <ul className="mt-1 ml-4 space-y-1 border-l border-slate-700 pl-2 animate-in slide-in-from-top-2 duration-200">
+                  {SECTORS.map((sector) => {
+                    const SectorIcon = sector.icon;
+                    const isActive = activeView === `sector-${sector.id}`;
+                    return (
+                      <li key={sector.id}>
+                        <button
+                          onClick={() => handleSectorClick(sector.id)}
+                          className={`w-full flex items-center gap-3 p-2 rounded-lg transition-colors text-sm ${
+                            isActive
+                              ? 'text-blue-400 bg-slate-800/50 font-bold' 
+                              : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/30'
+                          }`}
+                        >
+                          <SectorIcon size={16} />
+                          <span>{sector.name}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </li>
+
+            {/* Configurações Dropdown */}
+            {hasConfigAccess && (
+              <li>
+                <button
+                  onClick={() => setIsConfigOpen(!isConfigOpen)}
+                  className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors ${
+                    activeView === 'config' || activeView === 'stop-reasons'
+                      ? 'text-white bg-slate-800' 
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Settings size={20} />
+                    {isSidebarOpen && <span className="font-medium whitespace-nowrap">Configurações</span>}
+                  </div>
+                  {isSidebarOpen && (
+                    isConfigOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />
+                  )}
+                </button>
+
+                {/* Submenu Configurações */}
+                {isConfigOpen && isSidebarOpen && (
+                  <ul className="mt-1 ml-4 space-y-1 border-l border-slate-700 pl-2 animate-in slide-in-from-top-2 duration-200">
+                    <li>
+                      <button
+                        onClick={() => setActiveView('config')}
+                        className={`w-full flex items-center gap-3 p-2 rounded-lg transition-colors text-sm ${
+                          activeView === 'config'
+                            ? 'text-blue-400 bg-slate-800/50 font-bold' 
+                            : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/30'
+                        }`}
+                      >
+                        <Settings size={16} />
+                        <span>Geral</span>
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        onClick={() => setActiveView('stop-reasons')}
+                        className={`w-full flex items-center gap-3 p-2 rounded-lg transition-colors text-sm ${
+                          activeView === 'stop-reasons'
+                            ? 'text-blue-400 bg-slate-800/50 font-bold' 
+                            : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/30'
+                        }`}
+                      >
+                        <Clock size={16} />
+                        <span>Motivos de Paragens</span>
+                      </button>
+                    </li>
+                  </ul>
+                )}
+              </li>
+            )}
           </ul>
         </nav>
 

@@ -7,13 +7,18 @@ import OrderTimeline from './components/OrderTimeline';
 import OrderDetails from './components/OrderDetails';
 import ImportModal from './components/ImportModal';
 import Settings from './components/Settings';
+import StopReasons from './components/StopReasons';
 import Login from './components/Login';
 import { Order, User } from './types';
-import { generateMockOrders, loadOrdersFromDB, saveOrdersToDB, clearOrdersFromDB } from './services/dataService';
+import { generateMockOrders, loadOrdersFromDB, saveOrdersToDB, clearOrdersFromDB, loadStopReasonsFromDB, saveStopReasonsToDB } from './services/dataService';
 import { WifiOff, CheckCircle2, X, Download, Loader2 } from 'lucide-react';
+import { SECTORS, STOP_REASONS_HIERARCHY } from './constants';
+
+import SectorOrderTable from './components/SectorOrderTable';
 
 const App: React.FC = () => {
   const [orders, setOrders] = React.useState<Order[]>([]);
+  const [stopReasons, setStopReasons] = React.useState<any[]>(STOP_REASONS_HIERARCHY);
   const [isLoading, setIsLoading] = React.useState(true);
   const [activeView, setActiveView] = React.useState('dashboard');
   const [selectedOrderId, setSelectedOrderId] = React.useState<string | null>(null);
@@ -103,7 +108,10 @@ const App: React.FC = () => {
     const initData = async () => {
       setIsLoading(true);
       try {
-        const savedData = await loadOrdersFromDB();
+        const [savedData, savedStopReasons] = await Promise.all([
+          loadOrdersFromDB(),
+          loadStopReasonsFromDB()
+        ]);
         
         if (savedData && savedData.orders.length > 0) {
           setOrders(savedData.orders);
@@ -111,6 +119,10 @@ const App: React.FC = () => {
         } else {
           // Iniciar vazio se não houver dados
           setOrders([]);
+        }
+
+        if (savedStopReasons) {
+          setStopReasons(savedStopReasons);
         }
       } catch (e) {
         console.error("Erro ao carregar dados:", e);
@@ -158,6 +170,22 @@ const App: React.FC = () => {
     }));
   };
 
+  // Função para atualizar motivo de paragem em lote (por Nr Doc)
+  const handleUpdateStopReason = (docNr: string, sectorId: string, stopReason: string) => {
+    setOrders(prev => prev.map(o => {
+        if (o.docNr === docNr) {
+            const sectorStopReasons = { ...(o.sectorStopReasons || {}), [sectorId]: stopReason };
+            return { ...o, sectorStopReasons };
+        }
+        return o;
+    }));
+  };
+
+  const handleUpdateStopReasonsHierarchy = (newHierarchy: any[]) => {
+    setStopReasons(newHierarchy);
+    saveStopReasonsToDB(newHierarchy).catch(err => console.error("Erro ao guardar motivos:", err));
+  };
+
   const handleImport = (
     baseData: { orders: Order[], headers: Record<string, string> } | null, 
     newData: { orders: Order[], headers: Record<string, string> } | null
@@ -197,7 +225,9 @@ const App: React.FC = () => {
             id: existing.id,
             priority: existing.priority, // Manter prioridade existente
             isManual: existing.isManual, // Manter flag manual existente
-            sectorObservations: existing.sectorObservations || {}
+            sectorObservations: existing.sectorObservations || {},
+            sectorPredictedDates: existing.sectorPredictedDates || {},
+            sectorStopReasons: existing.sectorStopReasons || {}
           });
         } else {
           addedCount++;
@@ -267,6 +297,33 @@ const App: React.FC = () => {
       );
     }
 
+    if (activeView.startsWith('sector-')) {
+        const sectorId = activeView.replace('sector-', '');
+        const sector = SECTORS.find(s => s.id === sectorId);
+        return (
+            <div className="flex flex-col h-full">
+                <div className="p-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3">
+                    <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600 dark:text-blue-400">
+                        {sector?.icon && React.createElement(sector.icon, { size: 24 })}
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-bold text-slate-800 dark:text-white">Sector: {sector?.name}</h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Listagem de encomendas</p>
+                    </div>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                    <SectorOrderTable 
+                        orders={orders} 
+                        sector={sector!}
+                        onViewDetails={handleViewDetails} 
+                        onUpdateOrder={handleUpdateOrder}
+                        stopReasonsHierarchy={stopReasons}
+                    />
+                </div>
+            </div>
+        );
+    }
+
     switch (activeView) {
       case 'dashboard':
         return <Dashboard orders={orders} onNavigateToOrders={handleNavigateToOrders} />;
@@ -279,11 +336,15 @@ const App: React.FC = () => {
           user={currentUser} 
           onUpdatePriority={handleUpdatePriority}
           onUpdateManual={handleUpdateManual}
+          onUpdateStopReason={handleUpdateStopReason}
+          stopReasonsHierarchy={stopReasons}
         />;
       case 'timeline':
         return <OrderTimeline orders={orders} onViewDetails={handleViewDetails} />;
       case 'config':
         return <Settings currentTheme={theme} onToggleTheme={toggleTheme} onResetData={handleResetData} />;
+      case 'stop-reasons':
+        return <StopReasons hierarchy={stopReasons} onUpdateHierarchy={handleUpdateStopReasonsHierarchy} />;
       default:
         return <Dashboard orders={orders} />;
     }
@@ -369,6 +430,7 @@ const App: React.FC = () => {
           onClose={() => setSelectedOrderId(null)}
           onUpdateOrder={handleUpdateOrder}
           user={currentUser}
+          stopReasonsHierarchy={stopReasons}
         />
       )}
 

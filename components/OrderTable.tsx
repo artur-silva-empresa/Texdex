@@ -23,6 +23,7 @@ import { Order, OrderState, SectorState, User } from '../types';
 import { getOrderState, getSectorState, exportOrdersToSQLite, getDirectoryHandle, getWeekRange, exportOrdersToExcel } from '../services/dataService';
 import { formatDate } from '../utils/formatters';
 import { SECTORS } from '../constants';
+import StopReasonSelector from './StopReasonSelector';
 
 // Definição dos tipos de filtros ativos vindos do Dashboard
 export type ActiveFilterType = 'LATE' | 'WEEK_DELIVERIES' | 'WEEK_COMPLETED' | null;
@@ -35,6 +36,8 @@ interface OrderTableProps {
   user: User | null;
   onUpdatePriority?: (docNr: string, priority: number) => void;
   onUpdateManual?: (docNr: string, isManual: boolean) => void;
+  onUpdateStopReason?: (docNr: string, sectorId: string, reason: string) => void;
+  stopReasonsHierarchy: any[];
 }
 
 const ITEMS_PER_PAGE = 50;
@@ -48,7 +51,7 @@ const getISOWeek = (d: Date) => {
   return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
 };
 
-const OrderTable: React.FC<OrderTableProps> = React.memo(({ orders, onViewDetails, excelHeaders, activeFilter, user, onUpdatePriority, onUpdateManual }) => {
+const OrderTable: React.FC<OrderTableProps> = React.memo(({ orders, onViewDetails, excelHeaders, activeFilter, user, onUpdatePriority, onUpdateManual, onUpdateStopReason, stopReasonsHierarchy }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
   const deferredSearch = React.useDeferredValue(searchTerm);
   
@@ -666,7 +669,8 @@ const OrderTable: React.FC<OrderTableProps> = React.memo(({ orders, onViewDetail
                         <Filter size={10} strokeWidth={3} className={filterHasObservations ? "fill-blue-100 dark:fill-blue-900" : ""} />
                     </button>
                 </th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center w-[20%]">Estado</th>
+                <th className="px-2 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center w-[10%]">Classificação</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center w-[10%]">Estado</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-950 transition-colors">
@@ -767,6 +771,14 @@ const OrderTable: React.FC<OrderTableProps> = React.memo(({ orders, onViewDetail
                             <Eye size={16} className="text-slate-400 dark:text-slate-500 mx-auto group-hover:text-blue-500 dark:group-hover:text-blue-400" />
                         </div>
                     )}
+                  </td>
+                  <td className="px-2 py-4 align-middle text-center" onClick={(e) => e.stopPropagation()}>
+                    <StopReasonSelector 
+                        currentReason={order.sectorStopReasons?.['planeamento']} 
+                        onSelect={(reason) => onUpdateStopReason?.(order.docNr, 'planeamento', reason)}
+                        disabled={user?.role !== 'admin'}
+                        hierarchy={stopReasonsHierarchy}
+                    />
                   </td>
                   <td className="px-6 py-4 align-middle text-center">
                     {getStatusBadge(order)}

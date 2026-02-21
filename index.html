@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt">
 <head>
@@ -9,6 +10,7 @@
     <meta name="apple-mobile-web-app-title" content="TexFlow">
     <meta name="description" content="TexFlow - Gestão e Acompanhamento de Encomendas Têxteis">
     
+    <!-- PWA Icons -->
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2611/2611152.png">
     <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/2611/2611152.png">
     
@@ -22,7 +24,7 @@
                 extend: {
                     colors: {
                         slate: {
-                            850: '#151e2e',
+                            850: '#151e2e', // Custom dark shade
                             950: '#020617',
                         }
                     }
@@ -41,10 +43,13 @@
             width: 100vw;
             overflow: hidden;
             background-color: #f8fafc;
+            /* Impede selecção de texto para parecer mais nativo */
             -webkit-user-select: none;
             user-select: none;
+            /* Remove o delay do clique no mobile */
             touch-action: manipulation;
         }
+        /* Dark mode body background fix */
         html.dark body {
             background-color: #020617;
             color: #f1f5f9;
@@ -54,38 +59,54 @@
             width: 100%;
         }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .overflow-y-auto { -webkit-overflow-scrolling: touch; }
+        .overflow-y-auto {
+            -webkit-overflow-scrolling: touch;
+        }
+        /* Ajuste para áreas seguras (notches) */
         .safe-top { padding-top: env(safe-area-inset-top); }
         .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
     </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "recharts": "https://esm.sh/recharts@^3.7.0",
+    "xlsx": "https://esm.sh/xlsx@0.18.5",
+    "sql.js": "https://esm.sh/sql.js@1.8.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
 </head>
 <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-300">
-    
     <div id="root"></div>
-
-    <script type="module" src="/index.tsx"></script>
-
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                // Usamos ./sw.js para garantir que o caminho é relativo à pasta do projeto
-                navigator.serviceWorker.register('./sw.js')
+                navigator.serviceWorker.register('sw.js')
                     .then(reg => {
-                        console.log('TexFlow Service Worker registrado.');
+                        console.log('TexFlow Service Worker registrado com sucesso.');
+                        
+                        // Verificar actualizações do SW
                         reg.addEventListener('updatefound', () => {
                             const newWorker = reg.installing;
                             newWorker.addEventListener('statechange', () => {
                                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    if(confirm('Nova versão disponível! Recarregar?')) {
+                                    // Nova versão disponível
+                                    if(confirm('Nova versão do TexFlow disponível! Recarregar agora?')) {
                                         window.location.reload();
                                     }
                                 }
                             });
                         });
                     })
-                    .catch(err => console.log('Erro SW:', err));
+                    .catch(err => console.log('Erro ao registrar SW:', err));
             });
         }
     </script>
+<script type="module" src="/index.tsx"></script>
 </body>
 </html>

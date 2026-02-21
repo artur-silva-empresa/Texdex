@@ -1,33 +1,42 @@
 
 import React from 'react';
-import { X, User, ShoppingBag, Palette, Ruler, CheckCircle, Package, MessageSquare, Save, FileText as FileIcon, Trash2, Lock, Flag, Hand } from 'lucide-react';
+import { X, User, ShoppingBag, Palette, Ruler, CheckCircle, Package, MessageSquare, Save, FileText as FileIcon, Trash2, Lock, Flag, Hand, AlertCircle } from 'lucide-react';
 import { Order, Sector, SectorState, User as UserType } from '../types';
 import { getSectorState } from '../services/dataService';
 import { formatDate } from '../utils/formatters';
 import { SECTORS, STATUS_COLORS } from '../constants';
+import StopReasonSelector from './StopReasonSelector';
 
 interface OrderDetailsProps {
   order: Order;
   onClose: () => void;
   onUpdateOrder: (updatedOrder: Order) => void;
   user: UserType | null; // Adicionado user prop
+  stopReasonsHierarchy: any[];
 }
 
-const OrderDetails: React.FC<OrderDetailsProps> = ({ order, onClose, onUpdateOrder, user }) => {
+const OrderDetails: React.FC<OrderDetailsProps> = ({ order, onClose, onUpdateOrder, user, stopReasonsHierarchy }) => {
   const [editingSector, setEditingSector] = React.useState<Sector | null>(null);
   const [obsText, setObsText] = React.useState('');
+  const [stopReason, setStopReason] = React.useState('');
 
   const canEdit = user?.role === 'admin';
 
   const handleSectorClick = (sector: Sector) => {
     setEditingSector(sector);
     setObsText(order.sectorObservations?.[sector.id] || '');
+    setStopReason(order.sectorStopReasons?.[sector.id] || '');
   };
 
   const handleSaveObservation = () => {
     if (!editingSector || !canEdit) return;
     const updatedObservations = { ...(order.sectorObservations || {}), [editingSector.id]: obsText };
-    onUpdateOrder({ ...order, sectorObservations: updatedObservations });
+    const updatedStopReasons = { ...(order.sectorStopReasons || {}), [editingSector.id]: stopReason };
+    onUpdateOrder({ 
+      ...order, 
+      sectorObservations: updatedObservations,
+      sectorStopReasons: updatedStopReasons
+    });
     setEditingSector(null);
   };
   
@@ -157,9 +166,9 @@ const OrderDetails: React.FC<OrderDetailsProps> = ({ order, onClose, onUpdateOrd
                       </div>
                       
                       <div className={`px-1.5 py-0.5 rounded-md min-w-[50px] text-center border ${producedQty >= order.qtyRequested && order.qtyRequested > 0 ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800' : 'bg-slate-100 border-slate-200 dark:bg-slate-900 dark:border-slate-800'}`}>
-                        <span className={`text-[10px] md:text-xs font-black leading-none ${producedQty >= order.qtyRequested && order.qtyRequested > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'}`}>
-                          {producedQty.toLocaleString('pt-PT')}
-                          <span className="font-medium opacity-60"> / {order.qtyRequested.toLocaleString('pt-PT')}</span>
+                        <span className={`text-[10px] md:text-xs leading-none ${producedQty >= order.qtyRequested && order.qtyRequested > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                          <span className="font-medium opacity-60">{order.qtyRequested.toLocaleString('pt-PT')} / </span>
+                          <span className="font-black">{producedQty.toLocaleString('pt-PT')}</span>
                         </span>
                       </div>
 
@@ -174,7 +183,18 @@ const OrderDetails: React.FC<OrderDetailsProps> = ({ order, onClose, onUpdateOrd
               {editingSector && (
                 <div className="mt-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-2xl p-3 animate-in zoom-in-95">
                   <div className="flex justify-between items-center mb-2">
-                    <h4 className="text-[10px] font-black text-blue-700 dark:text-blue-300 uppercase flex items-center gap-2"><MessageSquare size={12}/> Notas: {editingSector.name}</h4>
+                    <div className="flex flex-col gap-1">
+                        <h4 className="text-[10px] font-black text-blue-700 dark:text-blue-300 uppercase flex items-center gap-2"><MessageSquare size={12}/> Notas: {editingSector.name}</h4>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] font-black text-rose-600 dark:text-rose-400 uppercase flex items-center gap-1"><AlertCircle size={10}/> Classificação:</span>
+                            <StopReasonSelector 
+                                currentReason={stopReason} 
+                                onSelect={setStopReason} 
+                                hierarchy={stopReasonsHierarchy}
+                                disabled={!canEdit}
+                            />
+                        </div>
+                    </div>
                     <div className="flex items-center gap-1">
                       {canEdit ? (
                         <button 
@@ -248,6 +268,7 @@ const OrderDetails: React.FC<OrderDetailsProps> = ({ order, onClose, onUpdateOrd
               <h3 className="text-sm font-black text-slate-800 dark:text-slate-200 tracking-tight">Histórico de Observações</h3>
               {SECTORS.map(sector => {
                 const obs = order.sectorObservations?.[sector.id];
+                const reason = order.sectorStopReasons?.[sector.id];
                 const SectorIcon = sector.icon;
                 const sectorDate = getSectorDate(sector.id);
                 return (
@@ -261,9 +282,21 @@ const OrderDetails: React.FC<OrderDetailsProps> = ({ order, onClose, onUpdateOrd
                         <div className="p-1.5 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm group-hover:border-blue-200 dark:group-hover:border-blue-800 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-colors">
                           <SectorIcon size={14} className="text-slate-500 dark:text-slate-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors" />
                         </div>
-                        <h4 className="font-bold text-slate-600 dark:text-slate-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{sector.name}</h4>
+                        <div className="flex flex-col">
+                            <h4 className="font-bold text-slate-600 dark:text-slate-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{sector.name}</h4>
+                            {reason && (
+                                <span className="text-[10px] font-black text-rose-500 flex items-center gap-1 mt-0.5">
+                                    <AlertCircle size={10} /> {reason}
+                                </span>
+                            )}
+                        </div>
                       </div>
-                      {sectorDate && <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 pr-1">{formatDate(sectorDate)}</span>}
+                      <div className="flex flex-col items-end">
+                        {sectorDate && <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 pr-1">Data Sector: {formatDate(sectorDate)}</span>}
+                        {order.sectorPredictedDates?.[sector.id] && (
+                            <span className="text-[10px] font-bold text-rose-500 pr-1">Data Prevista: {formatDate(order.sectorPredictedDates[sector.id])}</span>
+                        )}
+                      </div>
                     </div>
                     <p className={`mt-2 pl-3 text-sm whitespace-pre-wrap break-words ${obs ? 'text-slate-700 dark:text-slate-300 border-l-2 border-slate-200 dark:border-slate-700' : 'text-slate-400 dark:text-slate-600 italic'}`}>
                       {obs || (canEdit ? 'Sem observações (Clique para editar)' : 'Sem observações')}
