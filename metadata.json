@@ -1,0 +1,5 @@
+{
+  "name": "TexFlow LASA - Gestão de Produção Têxtil",
+  "description": "Sistema completo para gestão e acompanhamento de encomendas industriais, com dashboard de KPIs, vista de timeline/Gantt, listagem avançada e importação de dados Excel.",
+  "requestFramePermissions": []
+}
